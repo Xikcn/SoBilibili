@@ -55,9 +55,9 @@ if __name__ == "__main__":
         try:
             url = f"https://api.bilibili.com/x/web-interface/popular/series/one?number={num}"
             headers = {
-                "Cookie": "buvid3=9B6DBB6B-48BB-8AB5-029C-9CF6E337AA2E92177infoc; b_nut=1729610592; _uuid=BF6DDAA6-BF94-7CB3-2A35-C53FD110972D692309infoc; buvid4=26B60AAC-798D-59AC-41E7-8BE9B6D553BE92674-024102215-NDRDuS5Uzfh%2FwAzkIDIAWA%3D%3D; rpdid=|(J~J)J|~|JY0J'u~kmYlJJuk; enable_web_push=DISABLE; LIVE_BUVID=AUTO8517300366292252; CURRENT_BLACKGAP=0; buvid_fp_plain=undefined; hit-dyn-v2=1; enable_feed_channel=ENABLE; fingerprint=8cbe35576255ca5f2344af8553ea204a; buvid_fp=0afb8a5e48595852476c9810e7e297e6; bp_t_offset_513224697=1065224534484844544; CURRENT_QUALITY=116; home_feed_column=5; browser_resolution=1699-911; PVID=1; bili_ticket=eyJhbGciOiJIUzI1NiIsImtpZCI6InMwMyIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDk1MjMwNTMsImlhdCI6MTc0OTI2Mzc5MywicGx0IjotMX0.0D0iJYbIWgKI6bTiCfh8qC4ur-0H4-Yv2mRuZgm8rhc; bili_ticket_expires=1749522993; b_lsid=843710AED_1974D4CF583; bmg_af_switch=1; bmg_src_def_domain=i1.hdslb.com; CURRENT_FNVAL=4048; bp_t_offset_3546883695839314=1075952112954769408; header_theme_version=OPEN; SESSDATA=6d738ab9%2C1764905568%2Cb0dd9%2A61CjCwABVXmzCQTf5xC79SNdEV8tuybJWhL0n1EB4FwIneCRv6Am5QCD29fgDk8KZrBJ8SVlhieGpieWFKVVdvLUxhaGFTMEZWNGtPRG5mdU54MHNiX2Z0elVSbkhoRWhlenE0RkZOZi1YOEVuZVhRRjZpMlFCckxOWlRRYTRWTXJCd0d2ZEY0MDNBIIEC; bili_jct=628bc26f97f03cca33e964bab011c507; DedeUserID=3546883695839314; DedeUserID__ckMd5=1c2aadceb4dbe42d; sid=4ips1203",
+                "Cookie": "",
                 # 切换自己的
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0"
+                "User-Agent": ""
                 # 切换自己的
             }
 
