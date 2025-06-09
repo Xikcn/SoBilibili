@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>3D 视频星图（修改高亮）</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.164.0/build/three.module.js"
+      }
+    }
+  </script>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    #info {
+      position: absolute;
+      top: 10px; left: 10px;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 10px;
+      max-width: 300px;
+      font-family: sans-serif;
+      font-size: 14px;
+      border-radius: 8px;
+      z-index: 10;
+    }
+    #blocker {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      z-index: 20;
+    }
+    #crosshair {
+      position: fixed; top: 50%; left: 50%;
+      width: 24px; height: 24px;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 30;
+    }
+    #crosshair:before, #crosshair:after {
+      content: ""; position: absolute;
+      background: rgba(255,255,255,0.8);
+      border-radius: 2px;
+    }
+    #crosshair:before {
+      left: 50%; top: 0;
+      width: 2px; height: 100%;
+      transform: translateX(-50%);
+    }
+    #crosshair:after {
+      top: 50%; left: 0;
+      height: 2px; width: 100%;
+      transform: translateY(-50%);
+    }
+
+    /* Help Button */
+    #helpBtn {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background-color: rgba(0, 0, 0, 0.6);
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      z-index: 20;
+    }
+
+    /* Modal Styles */
+    #helpModal {
+      display: none; /* 默认隐藏 */
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(0,0,0,0.7);
+      justify-content: center;
+      align-items: center;
+      z-index: 30;
+    }
+
+    .modal-content {
+      background-color: #1a1a1a;
+      padding: 20px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 400px;
+      color: white;
+      position: relative;
+      box-shadow: 0 0 10px rgba(255,255,255,0.2);
+      font-family: sans-serif;
+    }
+
+    .modal-content h2 {
+      margin-top: 0;
+    }
+
+    .modal-content ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+
+    .modal-content li {
+      margin-bottom: 10px;
+    }
+
+    #closeModal {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 24px;
+      color: white;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div id="info">点击屏幕进入控制，W/A/S/D/R/F/Shift 移动，鼠标看，Esc 解锁。屏幕中心悬停高亮，Q 跳转视频。</div>
+<div id="blocker">点击进入 3D 星图</div>
+<div id="crosshair"></div>
+
+<!-- Help Button -->
+<button id="helpBtn">❓ 使用帮助</button>
+
+<!-- Modal 弹窗 -->
+<div id="helpModal">
+  <div class="modal-content">
+    <span id="closeModal">&times;</span>
+    <h2>3D 星图使用说明</h2>
+    <ul>
+      <li><strong>点击屏幕：</strong>进入控制模式</li>
+      <li><strong>W/A/S/D：</strong>前后左右移动</li>
+      <li><strong>R/F：</strong>上下移动</li>
+      <li><strong>Shift：</strong>开启加速（跳跃式前进）</li>
+      <li><strong>Q 键：</strong>悬停高亮的星点时按 Q 打开视频链接</li>
+      <li><strong>鼠标移动：</strong>改变视角方向</li>
+      <li><strong>Esc：</strong>退出控制模式</li>
+    </ul>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { PointerLockControls } from "https://unpkg.com/three@0.164.0/examples/jsm/controls/PointerLockControls.js";
+
+let camera, scene, renderer, controls, raycaster;
+let sphereGroup, highlightRing = null;
+let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, moveUp = false, moveDown = false, isWarp = false;
+let velocity = new THREE.Vector3();
+let prevTime = performance.now();
+const speed = 1.5, warpSpeed = 8;
+const infoDiv = document.getElementById('info');
+const blocker = document.getElementById('blocker');
+
+// 获取模态框元素
+const helpBtn = document.getElementById('helpBtn');
+const helpModal = document.getElementById('helpModal');
+const closeModal = document.getElementById('closeModal');
+
+fetch('data.json').then(res => res.json()).then(pointData => {
+  init(pointData);
+  animate();
+});
+
+function init(pointData) {
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.01, 100);
+  camera.position.set(0, 0, 0.2);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  controls = new PointerLockControls(camera, document.body);
+  scene.add(controls.getObject());
+
+  blocker.addEventListener('click', () => controls.lock());
+  controls.addEventListener('lock', () => blocker.style.display = 'none');
+  controls.addEventListener('unlock', () => blocker.style.display = 'flex');
+
+  // 点作为 Mesh
+  sphereGroup = new THREE.Group();
+  pointData.forEach(d => {
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(0.01, 12, 12),
+      new THREE.MeshStandardMaterial({
+        color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 1, roughness: 0.5, metalness: 0.1
+      })
+    );
+    m.position.set(...d.position);
+    m.userData = d;
+    sphereGroup.add(m);
+  });
+  scene.add(sphereGroup);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const spot = new THREE.SpotLight(0xffffff, 0.8);
+  spot.position.set(3, 3, 3);
+  scene.add(spot);
+
+  raycaster = new THREE.Raycaster();
+
+  window.addEventListener('resize', onWindowResize);
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('keyup', onKey);
+
+  // 模态框交互
+  helpBtn.addEventListener('click', () => {
+    helpModal.style.display = 'flex';
+  });
+
+  closeModal.addEventListener('click', () => {
+    helpModal.style.display = 'none';
+  });
+
+  helpModal.addEventListener('click', (e) => {
+    if (e.target === helpModal) {
+      helpModal.style.display = 'none';
+    }
+  });
+}
+
+function onWindowResize() {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function onKey(event) {
+  const down = (event.type === 'keydown');
+  switch (event.code) {
+    case 'KeyW': moveForward = down; break;
+    case 'KeyS': moveBackward = down; break;
+    case 'KeyA': moveLeft = down; break;
+    case 'KeyD': moveRight = down; break;
+    case 'KeyR': moveUp = down; break;
+    case 'KeyF': moveDown = down; break;
+    case 'ShiftLeft':
+    case 'ShiftRight': isWarp = down; break;
+    case 'KeyQ':
+      if (highlightRing) {
+        const url = highlightRing.userData["视频链接"];
+        if (url) window.open(url, '_blank');
+      }
+      break;
+  }
+}
+
+function highlightSphereMesh(sphere) {
+  if (highlightRing) {
+    scene.remove(highlightRing);
+    highlightRing.geometry.dispose();
+    highlightRing.material.dispose();
+    highlightRing = null;
+  }
+
+  highlightRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.02, 0.025, 32),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
+  );
+  highlightRing.position.copy(sphere.position);
+  highlightRing.lookAt(camera.position);
+  highlightRing.userData = sphere.userData;
+  scene.add(highlightRing);
+
+  const d = sphere.userData;
+  infoDiv.innerHTML = `
+   <b>标题：</b>${d.title}<br>
+    <b>描述：</b>${d.description}<br>
+    <b>UP主：</b>${d.UP主}<br>
+    <b>分类：</b>${d.分类} - ${d.子分类}<br>
+    <b>👍：</b>${d.点赞数} &nbsp; <b>收藏：</b>${d.收藏数}<br>
+    <b>💬：</b>${d.评论数}<br>
+    <img src="${d.封面图片}" referrerpolicy="no-referrer" style="width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px;" />
+  `;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  // 射线检测中心
+  raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+  const hits = raycaster.intersectObjects(sphereGroup.children);
+  if (hits.length > 0) highlightSphereMesh(hits[0].object);
+  else if (highlightRing) {
+    scene.remove(highlightRing);
+    highlightRing = null;
+    infoDiv.innerHTML = '';
+  }
+
+  // FPS式移动
+  const time = performance.now();
+  const delta = (time - prevTime) / 1000;
+  prevTime = time;
+
+  velocity.x -= velocity.x * 10.0 * delta;
+  velocity.y -= velocity.y * 10.0 * delta;
+  velocity.z -= velocity.z * 10.0 * delta;
+
+  const actualSpeed = isWarp ? warpSpeed : speed;
+
+  const direction = new THREE.Vector3();
+  camera.getWorldDirection(direction); // 完整的方向，包含 y
+  direction.normalize();
+
+  const right = new THREE.Vector3();
+  right.crossVectors(camera.up, direction).normalize(); // 相机右侧方向
+
+  const up = new THREE.Vector3();
+  up.copy(camera.up).normalize(); // 相机上方方向
+
+  let moveDir = new THREE.Vector3();
+  if (moveForward) moveDir.add(direction);   // 前
+  if (moveBackward) moveDir.sub(direction);  // 后
+  if (moveLeft) moveDir.sub(right);          // 左
+  if (moveRight) moveDir.add(right);         // 右
+  if (moveUp) moveDir.add(up);               // 上
+  if (moveDown) moveDir.sub(up);             // 下
+
+  if (!moveDir.equals(new THREE.Vector3())) {
+    moveDir.normalize(); // 避免斜向移动过快
+  }
+
+  velocity.addScaledVector(moveDir, actualSpeed * delta);
+  controls.getObject().position.add(velocity.clone().multiplyScalar(delta));
+
+  renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
