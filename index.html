@@ -169,16 +169,59 @@ fetch('data.json').then(res => res.json()).then(pointData => {
   animate();
 });
 
+function findDenseRegion(pointData, gridSize = 0.1) {
+  const grid = new Map();
+
+  for (const point of pointData) {
+    const pos = point.position;
+    const key = [
+      Math.floor(pos[0] / gridSize),
+      Math.floor(pos[1] / gridSize),
+      Math.floor(pos[2] / gridSize)
+    ].join(',');
+
+    if (!grid.has(key)) grid.set(key, []);
+    grid.get(key).push(pos);
+  }
+
+  let maxCount = 0;
+  let denseCenter = [0, 0, 0];
+
+  for (const [key, points] of grid.entries()) {
+    if (points.length > maxCount) {
+      maxCount = points.length;
+      const sum = [0, 0, 0];
+      for (const p of points) {
+        sum[0] += p[0];
+        sum[1] += p[1];
+        sum[2] += p[2];
+      }
+      denseCenter = [
+        sum[0] / points.length,
+        sum[1] / points.length,
+        sum[2] / points.length
+      ];
+    }
+  }
+
+  return denseCenter;
+}
+
 function init(pointData) {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.01, 100);
-  camera.position.set(0, 0, 0.2);
+
+   // 定位到最密集区域
+  const center = findDenseRegion(pointData);
+  camera.position.set(center[0] + 0.5, center[1], center[2] + 0.5);
+
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
 
   controls = new PointerLockControls(camera, document.body);
+  controls.getObject().lookAt(center[0], center[1], center[2]);
   scene.add(controls.getObject());
 
   blocker.addEventListener('click', () => controls.lock());
@@ -272,6 +315,7 @@ function highlightSphereMesh(sphere) {
 
   const d = sphere.userData;
   infoDiv.innerHTML = `
+   <b>热门期数：</b>${d.期数}<br>
    <b>标题：</b>${d.title}<br>
     <b>描述：</b>${d.description}<br>
     <b>UP主：</b>${d.UP主}<br>

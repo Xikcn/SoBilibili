@@ -21,7 +21,7 @@ def get_embedding(text):
 df = pd.read_csv("bilibili_hot_videos_20250608.csv")  # 请替换为真实 CSV 文件路径
 
 # ✅ 填充空值（将 NaN 替换为空字符串）
-text_columns = ["标题", "描述", "点赞数", "评论数", "收藏数", "UP主昵称", "视频链接", "分类", "三级分类", "封面图片"]
+text_columns = ["期数","标题", "描述", "点赞数", "评论数", "收藏数", "UP主昵称", "视频链接", "分类", "三级分类", "封面图片"]
 for col in text_columns:
     if col in df.columns:
         if df[col].dtype == 'O':  # 如果是对象类型（字符串）
@@ -31,7 +31,7 @@ for col in text_columns:
             df[col] = df[col].fillna(0)
 
 # 检查字段是否存在
-required_cols = ["标题", "描述", "点赞数", "评论数", "收藏数", "UP主昵称", "视频链接", "分类", "三级分类", "封面图片"]
+required_cols = ["期数","标题", "描述", "点赞数", "评论数", "收藏数", "UP主昵称", "视频链接", "分类", "三级分类", "封面图片"]
 for col in required_cols:
     if col not in df.columns:
         raise ValueError(f"缺少字段：{col}")
@@ -52,6 +52,7 @@ result = []
 for idx, row in df.iterrows():
     item = {
         "id": int(idx),
+        "期数":int(row["期数"]) if pd.notna(row["期数"]) else 1,
         "title": str(row["标题"]) if pd.notna(row["标题"]) else "",
         "description": str(row["描述"]) if pd.notna(row["描述"]) else "",
         "position": X_3d[idx].tolist(),
