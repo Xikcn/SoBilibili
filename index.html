@@ -277,7 +277,6 @@
       <li><strong>鼠标移动：</strong>改变视角方向</li>
       <li><strong>Q 键：</strong>悬停高亮的星点时按 Q 打开视频链接（新标签页）</li>
       <li><strong>E 键：</strong>悬停高亮的星点时按 E 在页面弹窗中播放视频，弹窗时星图暂停，E 或点击弹窗外关闭</li>
-      <li><strong>Space 空格：</strong>自动跳转到当前高亮点最近的下一个节点（专区推荐）</li>
       <li><strong>Esc：</strong>退出控制模式</li>
     </ul>
   </div>
@@ -295,7 +294,7 @@
 <div id="videoModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(10,20,40,0.85);z-index:1000;align-items:center;justify-content:center;">
   <div style="position:relative;width:70vw;height:70vh;max-width:900px;max-height:600px;background:#111;border-radius:14px;box-shadow:0 8px 32px #000;display:flex;align-items:center;justify-content:center;">
     <span id="closeVideoModal" style="position:absolute;top:10px;right:18px;font-size:32px;color:#fff;cursor:pointer;z-index:10;">&times;</span>
-    <iframe id="videoIframe" src="" frameborder="0" allowfullscreen style="width:100%;height:100%;border-radius:12px;"></iframe>
+    <iframe id="videoIframe" src="" frameborder="0" allowfullscreen sandbox="allow-scripts allow-same-origin allow-popups" style="width:100%;height:100%;border-radius:12px;"></iframe>
   </div>
 </div>
 
@@ -321,13 +320,19 @@
     <div class="controls-label">Boost</div>
   </div>
   <div class="controls-group">
+    <span class="keycap big">Q</span>
+    <div class="controls-label">Goto Video Url</div>
+  </div>
+  <div class="controls-group">
     <span class="keycap big">E</span>
     <div class="controls-label">Open Video</div>
   </div>
-  <div class="controls-group">
-    <span class="keycap big">Space</span>
-    <div class="controls-label">Next Node</div>
-  </div>
+
+</div>
+
+<!-- 页面右下角显示三维坐标 -->
+<div id="coordDisplay" style="position:fixed;right:24px;bottom:24px;z-index:120;background:rgba(20,30,40,0.7);color:#E2FF02;padding:10px 18px;border-radius:10px;font-size:15px;font-family:monospace;box-shadow:0 2px 8px 0 rgba(0,0,0,0.13);user-select:text;pointer-events:auto;">
+  位置:  x: 0.00  y: 0.00  z: 0.00
 </div>
 
 <script type="module">
@@ -339,7 +344,7 @@ let points, highlightRing = null;
 let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, moveUp = false, moveDown = false, isWarp = false;
 let velocity = new THREE.Vector3();
 let prevTime = performance.now();
-const speed = 4.5, warpSpeed = 16;
+const speed = 6, warpSpeed = 32;
 const infoDiv = document.getElementById('info');
 const blocker = document.getElementById('blocker');
 
@@ -360,9 +365,20 @@ const closeVideoModal = document.getElementById('closeVideoModal');
 
 let controlsLockedBeforeModal = false;
 let starMapPaused = false;
+let escLocked = false;
+
+// 新增：记录弹窗前的相机位置和朝向
+let savedPosition = null;
+let savedRotation = null;
 
 // 访问过的节点索引集合
 const visitedNodeSet = new Set();
+
+// 按键缓存
+let keyStateCache = {};
+
+let lastHighlightIdx = null;
+let highlightLine = null;
 
 // 模拟进度条（fetch不支持原生进度，实际可用XHR或fetch+stream优化）
 function setProgress(p) {
@@ -457,7 +473,7 @@ function init(pointData) {
 
   // 定位到最密集区域
   const center = findDenseRegion(pointData);
-  camera.position.set(center[0] + 0.5, center[1], center[2] + 0.5);
+  camera.position.set(center[0] + 0.7, center[1]-2, center[2] - 1);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -513,7 +529,8 @@ function init(pointData) {
 
   // 模态框交互
   helpBtn.addEventListener('click', () => {
-    helpModal.style.display = 'flex';
+    escLocked = false;
+    starMapPaused = false;
   });
 
   closeModal.addEventListener('click', () => {
@@ -528,16 +545,14 @@ function init(pointData) {
 
   // 鼠标操作增强
   window.addEventListener('mousedown', (e) => {
-    if (e.button === 0) moveForward = true; // 左键
-    if (e.button === 2) moveBackward = true; // 右键
+    if (starMapPaused || escLocked) return;
   });
   window.addEventListener('mouseup', (e) => {
-    if (e.button === 0) moveForward = false;
-    if (e.button === 2) moveBackward = false;
+    if (starMapPaused || escLocked) return;
   });
   window.addEventListener('contextmenu', e => e.preventDefault()); // 禁止右键菜单
   window.addEventListener('auxclick', (e) => {
-    if (e.button === 1 && highlightRing) {
+    if (e.button === 1 && highlightRing && !escLocked) {
       const url = highlightRing.userData && highlightRing.userData["视频链接"];
       if (url) window.open(url, '_blank');
     }
@@ -555,7 +570,15 @@ function onWindowResize() {
 
 function onKey(event) {
   const down = (event.type === 'keydown');
-  if (starMapPaused && event.code !== 'KeyE') return; // 弹窗时只响应E
+  // 缓存所有按键状态
+  keyStateCache[event.code] = down;
+  
+  // 在escLocked状态下，只允许Escape键操作
+  if (escLocked && event.code !== 'Escape') return;
+  
+  // 在starMapPaused状态下，只允许E键操作
+  if (starMapPaused && event.code !== 'KeyE') return;
+  
   switch (event.code) {
     case 'KeyW': moveForward = down; break;
     case 'KeyS': moveBackward = down; break;
@@ -566,9 +589,19 @@ function onKey(event) {
     case 'ShiftLeft':
     case 'ShiftRight': isWarp = down; break;
     case 'KeyQ':
-      if (highlightRing) {
+      if (down && highlightRing && !escLocked) {
         const url = highlightRing.userData && highlightRing.userData["视频链接"];
-        if (url) window.open(url, '_blank');
+        if (url) {
+          window.open(url, '_blank');
+          // 确保在打开新标签页后重置所有状态
+          moveForward = false;
+          moveBackward = false;
+          moveLeft = false;
+          moveRight = false;
+          moveUp = false;
+          moveDown = false;
+          isWarp = false;
+        }
       }
       break;
     case 'KeyE':
@@ -579,6 +612,22 @@ function onKey(event) {
         } else if (starMapPaused) {
           closeVideoPopup();
         }
+      }
+      break;
+    case 'Escape':
+      if (!escLocked) {
+        escLocked = true;
+        starMapPaused = true;
+        document.body.style.cursor = 'auto';
+        document.getElementById('helpBtn').style.display = '';
+        // 重置所有移动状态
+        moveForward = false;
+        moveBackward = false;
+        moveLeft = false;
+        moveRight = false;
+        moveUp = false;
+        moveDown = false;
+        isWarp = false;
       }
       break;
   }
@@ -601,7 +650,7 @@ function highlightSphereMesh(index) {
 
   // 固定高亮环大小，白色发光材质
   highlightRing = new THREE.Mesh(
-    new THREE.RingGeometry(0.02, 0.025, 32),
+    new THREE.RingGeometry(0.01, 0.014, 32),
     new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
@@ -617,10 +666,14 @@ function highlightSphereMesh(index) {
   scene.add(highlightRing);
 
   // 展示信息
+  // 优化描述省略号和换行
+  let desc = d.description || '';
+  let maxLen = 60;
+  if (desc.length > maxLen) desc = desc.slice(0, maxLen) + '...';
   infoDiv.innerHTML = `
     <b>热门期数：</b>${d.期数}<br>
     <b>标题：</b>${d.title}<br>
-    <b>描述：</b>${d.description}<br>
+    <b>描述：</b><span style="display:inline-block;max-width:300px;word-break:break-all;overflow:hidden;text-overflow:ellipsis;white-space:pre-line;vertical-align:top;">${desc}</span><br>
     <b>UP主：</b>${d.UP主}<br>
     <b>分类：</b>${d.分类} - ${d.子分类}<br>
     <b>👍：</b>${d.点赞数} &nbsp; <b>收藏：</b>${d.收藏数}<br>
@@ -629,7 +682,7 @@ function highlightSphereMesh(index) {
 }
 
 function renderMinimap() {
-  if (!minimapCtx || !points) return;
+  if (!minimapCtx || !allPositions) return;
   const w = minimap.width, h = minimap.height;
   minimapCtx.clearRect(0, 0, w, h);
   // 背景渐变
@@ -638,30 +691,33 @@ function renderMinimap() {
   bgGrad.addColorStop(1, '#0a1a1a');
   minimapCtx.fillStyle = bgGrad;
   minimapCtx.fillRect(0, 0, w, h);
-  // 获取所有点
-  const posArr = points.geometry.attributes.position.array;
   // 计算包围盒
   let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
-  for (let i=0; i<posArr.length; i+=3) {
-    minX = Math.min(minX, posArr[i]);
-    maxX = Math.max(maxX, posArr[i]);
-    minY = Math.min(minY, posArr[i+1]);
-    maxY = Math.max(maxY, posArr[i+1]);
+  for (let i=0; i<allPositions.length; i+=3) {
+    minX = Math.min(minX, allPositions[i]);
+    maxX = Math.max(maxX, allPositions[i]);
+    minY = Math.min(minY, allPositions[i+1]);
+    maxY = Math.max(maxY, allPositions[i+1]);
   }
-  // 扩展边界，避免贴边
   const pad = 0.1 * Math.max(maxX-minX, maxY-minY);
   minX -= pad; maxX += pad; minY -= pad; maxY += pad;
-  // 画点
-  for (let i=0; i<posArr.length; i+=3) {
-    const x = posArr[i], y = posArr[i+1];
+  // 画所有点
+  let edgeFlags = {left:false,right:false,top:false,bottom:false};
+  for (let i=0; i<allPositions.length; i+=3) {
+    const x = allPositions[i], y = allPositions[i+1];
     const px = ((x-minX)/(maxX-minX))*w;
     const py = h-((y-minY)/(maxY-minY))*h;
     minimapCtx.beginPath();
-    minimapCtx.arc(px, py, 5, 0, 2*Math.PI);
-    minimapCtx.fillStyle = '#E3FF01';
+    minimapCtx.arc(px, py, 4, 0, 2*Math.PI);
+    minimapCtx.fillStyle = '#E2FF02';
     minimapCtx.globalAlpha = 0.85;
     minimapCtx.fill();
     minimapCtx.globalAlpha = 1;
+    // 边缘检测
+    if (px < 10) edgeFlags.left = true;
+    if (px > w-10) edgeFlags.right = true;
+    if (py < 10) edgeFlags.top = true;
+    if (py > h-10) edgeFlags.bottom = true;
   }
   // 画相机朝向
   const cx = ((camera.position.x-minX)/(maxX-minX))*w;
@@ -685,6 +741,44 @@ function renderMinimap() {
   minimapCtx.moveTo(18, 0);
   minimapCtx.lineTo(12, 6);
   minimapCtx.stroke();
+  minimapCtx.restore();
+  // 边缘指示箭头
+  minimapCtx.save();
+  minimapCtx.strokeStyle = '#E2FF02';
+  minimapCtx.fillStyle = '#E2FF02';
+  minimapCtx.globalAlpha = 0.7;
+  if (edgeFlags.left) {
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(8, h/2);
+    minimapCtx.lineTo(18, h/2-8);
+    minimapCtx.lineTo(18, h/2+8);
+    minimapCtx.closePath();
+    minimapCtx.fill();
+  }
+  if (edgeFlags.right) {
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(w-8, h/2);
+    minimapCtx.lineTo(w-18, h/2-8);
+    minimapCtx.lineTo(w-18, h/2+8);
+    minimapCtx.closePath();
+    minimapCtx.fill();
+  }
+  if (edgeFlags.top) {
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(w/2, 8);
+    minimapCtx.lineTo(w/2-8, 18);
+    minimapCtx.lineTo(w/2+8, 18);
+    minimapCtx.closePath();
+    minimapCtx.fill();
+  }
+  if (edgeFlags.bottom) {
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(w/2, h-8);
+    minimapCtx.lineTo(w/2-8, h-18);
+    minimapCtx.lineTo(w/2+8, h-18);
+    minimapCtx.closePath();
+    minimapCtx.fill();
+  }
   minimapCtx.restore();
 }
 
@@ -721,14 +815,48 @@ function updateVisiblePoints() {
   }
 }
 
+function getEmbedUrl(url) {
+  // B站普通视频页转iframe嵌入地址
+  const bvMatch = url.match(/bilibili\.com\/video\/(BV[\w]+)/i);
+  if (bvMatch) {
+    return `https://player.bilibili.com/player.html?bvid=${bvMatch[1]}&autoplay=1&high_quality=1`;
+  }
+  // B站专栏
+  const cvMatch = url.match(/bilibili\.com\/read\/(cv\d+)/i);
+  if (cvMatch) {
+    return `https://www.bilibili.com/read/${cvMatch[1]}`;
+  }
+  // b23.tv短链直接内嵌
+  if (/b23\.tv/.test(url)) {
+    return url;
+  }
+  // 其他平台可扩展，非bilibili外链直接返回原url（iframe有sandbox保护）
+  return url;
+}
+
 function openVideoPopup(url) {
+  // 记录弹窗前的相机位置和朝向
+  if (controls && controls.getObject) {
+    const obj = controls.getObject();
+    savedPosition = obj.position.clone();
+    // 弹窗时立即清零速度
+    velocity.set(0, 0, 0);
+  }
   starMapPaused = true;
   controlsLockedBeforeModal = controls.isLocked;
   if (controlsLockedBeforeModal) controls.unlock();
   blocker.style.display = 'none';
-  videoIframe.src = url;
+  videoIframe.src = getEmbedUrl(url);
   videoModal.style.display = 'flex';
   document.body.style.cursor = 'auto';
+  // 重置所有移动状态
+  moveForward = false;
+  moveBackward = false;
+  moveLeft = false;
+  moveRight = false;
+  moveUp = false;
+  moveDown = false;
+  isWarp = false;
   setTimeout(() => videoIframe.focus(), 100);
 }
 
@@ -737,22 +865,76 @@ function closeVideoPopup() {
   videoIframe.src = '';
   starMapPaused = false;
   document.body.style.cursor = '';
-  if (controlsLockedBeforeModal) controls.lock();
+  // 只恢复弹窗前的相机位置，不恢复rotation
+  if (controls && controls.getObject && savedPosition) {
+    const obj = controls.getObject();
+    obj.position.copy(savedPosition);
+    // 恢复后再次清零速度
+    velocity.set(0, 0, 0);
+  }
+  // 如果之前是锁定状态，重新锁定控制
+  if (controlsLockedBeforeModal) {
+    controls.lock();
+  }
+  // 重置所有移动状态
+  moveForward = false;
+  moveBackward = false;
+  moveLeft = false;
+  moveRight = false;
+  moveUp = false;
+  moveDown = false;
+  isWarp = false;
+}
+
+function updateCoordDisplay() {
+  const coordDiv = document.getElementById('coordDisplay');
+  if (camera && camera.position) {
+    const p = camera.position;
+    coordDiv.textContent = `位置:  x: ${p.x.toFixed(2)}  y: ${p.y.toFixed(2)}  z: ${p.z.toFixed(2)}`;
+  } else {
+    coordDiv.textContent = '位置:  x: 0.00  y: 0.00  z: 0.00';
+  }
 }
 
 function animate() {
   requestAnimationFrame(animate);
-  if (starMapPaused) return;
+  // 判空保护，防止 raycaster/points 未初始化时报错
+  if (!raycaster || !points) {
+    if (renderer && scene && camera) {
+      renderer.render(scene, camera);
+    }
+    renderMinimap();
+    updateCoordDisplay();
+    infoDiv.innerHTML = '点击屏幕进入控制，W/A/S/D/R/F/Shift 移动，鼠标看，Esc 解锁。屏幕中心悬停高亮，Q 跳转视频。';
+    return;
+  }
+  // escLocked 时禁止一切移动和操作，只渲染
+  if (escLocked) {
+    renderer.render(scene, camera);
+    renderMinimap();
+    updateCoordDisplay();
+    return;
+  }
+  if (starMapPaused) {
+    velocity.set(0, 0, 0);
+    renderer.render(scene, camera);
+    renderMinimap();
+    updateCoordDisplay();
+    return;
+  }
   updateVisiblePoints();
   // 优化准心选中逻辑：只高亮准心方向上距离相机最近的点
   raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
   const intersects = raycaster.intersectObject(points, false);
   if (intersects.length > 0 && intersects[0].distance < 10) {
     highlightSphereMesh(intersects[0].index);
-  } else if (highlightRing) {
-    scene.remove(highlightRing);
-    highlightRing = null;
-    infoDiv.innerHTML = '';
+  } else {
+    if (highlightRing) {
+      scene.remove(highlightRing);
+      highlightRing = null;
+    }
+    // 未选中任何点时显示说明
+    infoDiv.innerHTML = '点击屏幕进入控制，W/A/S/D/R/F/Shift 移动，鼠标看，Esc 解锁。屏幕中心悬停高亮，Q 跳转视频。';
   }
 
   // FPS式移动
@@ -765,7 +947,6 @@ function animate() {
   velocity.z -= velocity.z * 10.0 * delta;
 
   // 鼠标左右键长按时速度与shift一致
-  const mouseBoost = moveForward || moveBackward ? warpSpeed : speed;
   const actualSpeed = isWarp || moveForward || moveBackward ? warpSpeed : speed;
 
   const direction = new THREE.Vector3();
@@ -795,7 +976,124 @@ function animate() {
 
   renderMinimap();
   renderer.render(scene, camera);
+  updateCoordDisplay();
 }
+
+videoModal.onclick = (e) => {
+  if (e.target === videoModal) closeVideoPopup();
+};
+
+// 监听鼠标左键/帮助按钮/星图点击时恢复所有按键状态
+function restoreKeyStates() {
+  if (escLocked) return; // 在escLocked状态下不恢复按键状态
+  
+  escLocked = false;
+  starMapPaused = false;
+  // 恢复所有按键状态
+  moveForward = !!keyStateCache['KeyW'];
+  moveBackward = !!keyStateCache['KeyS'];
+  moveLeft = !!keyStateCache['KeyA'];
+  moveRight = !!keyStateCache['KeyD'];
+  moveUp = !!keyStateCache['KeyR'];
+  moveDown = !!keyStateCache['KeyF'];
+  isWarp = !!keyStateCache['ShiftLeft'] || !!keyStateCache['ShiftRight'];
+}
+
+// 鼠标左键点击 blocker 恢复
+blocker.addEventListener('click', () => {
+  if (escLocked) {
+    escLocked = false;
+    starMapPaused = false;
+    controls.lock();
+    // 确保所有移动状态都被重置
+    moveForward = false;
+    moveBackward = false;
+    moveLeft = false;
+    moveRight = false;
+    moveUp = false;
+    moveDown = false;
+    isWarp = false;
+    // 重置鼠标状态
+    document.body.style.cursor = '';
+  } else {
+    restoreKeyStates();
+    // 确保点击时不会触发前进
+    moveForward = false;
+    moveBackward = false;
+  }
+});
+
+// 帮助按钮点击恢复
+helpBtn.addEventListener('click', () => {
+  if (!escLocked) {
+    helpModal.style.display = 'flex';
+    // 重置所有移动状态
+    moveForward = false;
+    moveBackward = false;
+    moveLeft = false;
+    moveRight = false;
+    moveUp = false;
+    moveDown = false;
+    isWarp = false;
+  }
+});
+
+// 添加控制锁定/解锁事件监听
+controls.addEventListener('lock', () => {
+  blocker.style.display = 'none';
+  document.body.style.cursor = '';
+  // 重置所有移动状态
+  moveForward = false;
+  moveBackward = false;
+  moveLeft = false;
+  moveRight = false;
+  moveUp = false;
+  moveDown = false;
+  isWarp = false;
+});
+
+controls.addEventListener('unlock', () => {
+  if (!starMapPaused) {
+    blocker.style.display = 'flex';
+    document.body.style.cursor = 'auto';
+  }
+  // 重置所有移动状态
+  moveForward = false;
+  moveBackward = false;
+  moveLeft = false;
+  moveRight = false;
+  moveUp = false;
+  moveDown = false;
+  isWarp = false;
+});
+
+// 修改帮助模态框点击事件
+helpModal.addEventListener('click', (e) => {
+  if (e.target === helpModal) {
+    helpModal.style.display = 'none';
+    // 重置所有移动状态
+    moveForward = false;
+    moveBackward = false;
+    moveLeft = false;
+    moveRight = false;
+    moveUp = false;
+    moveDown = false;
+    isWarp = false;
+  }
+});
+
+// 修改关闭帮助模态框事件
+closeModal.addEventListener('click', () => {
+  helpModal.style.display = 'none';
+  // 重置所有移动状态
+  moveForward = false;
+  moveBackward = false;
+  moveLeft = false;
+  moveRight = false;
+  moveUp = false;
+  moveDown = false;
+  isWarp = false;
+});
 </script>
 </body>
 </html>
