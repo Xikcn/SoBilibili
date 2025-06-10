@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8" />
-  <title>3D 视频星图（修改高亮）</title>
+  <title>B站热门视频星图</title>
   <script type="importmap">
     {
       "imports": {
@@ -11,112 +11,247 @@
     }
   </script>
   <style>
-    body { margin: 0; overflow: hidden; background: #000; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      /* 银河渐变背景 */
+      background: radial-gradient(ellipse at 60% 40%, #1a2a1a 60%, #0a1a1a 100%);
+      min-height: 100vh;
+    }
     #info {
       position: absolute;
-      top: 10px; left: 10px;
-      background: rgba(0,0,0,0.6);
-      color: white;
-      padding: 10px;
-      max-width: 300px;
-      font-family: sans-serif;
-      font-size: 14px;
-      border-radius: 8px;
+      top: 18px; left: 18px;
+      background: rgba(20,30,40,0.7);
+      color: #fff;
+      padding: 14px 20px;
+      max-width: 340px;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 15px;
+      border-radius: 12px;
       z-index: 10;
+      box-shadow: 0 4px 24px 0 rgba(0,0,0,0.18);
+      backdrop-filter: blur(2px);
+      border: 1px solid rgba(80,200,255,0.08);
     }
     #blocker {
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.7);
+      background: rgba(10,20,40,0.7);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
-      font-size: 24px;
+      color: #fff;
+      font-size: 28px;
       cursor: pointer;
       z-index: 20;
+      letter-spacing: 2px;
+      font-family: 'Segoe UI', Arial, sans-serif;
     }
     #crosshair {
       position: fixed; top: 50%; left: 50%;
-      width: 24px; height: 24px;
+      width: 18px; height: 18px;
       pointer-events: none;
       transform: translate(-50%, -50%);
       z-index: 30;
     }
     #crosshair:before, #crosshair:after {
-      content: ""; position: absolute;
-      background: rgba(255,255,255,0.8);
-      border-radius: 2px;
+      content: "";
+      position: absolute;
+      background: rgba(255,255,255,0.95);
+      border-radius: 1px;
     }
     #crosshair:before {
       left: 50%; top: 0;
-      width: 2px; height: 100%;
+      width: 1px; height: 100%;
       transform: translateX(-50%);
     }
     #crosshair:after {
       top: 50%; left: 0;
-      height: 2px; width: 100%;
+      height: 1px; width: 100%;
       transform: translateY(-50%);
     }
-
-    /* Help Button */
     #helpBtn {
       position: absolute;
-      bottom: 10px;
-      left: 10px;
-      background-color: rgba(0, 0, 0, 0.6);
-      color: white;
+      bottom: 18px;
+      left: 18px;
+      background-color: rgba(20, 30, 40, 0.7);
+      color: #fff;
       border: none;
-      padding: 8px 12px;
-      font-size: 16px;
-      border-radius: 5px;
+      padding: 10px 18px;
+      font-size: 17px;
+      border-radius: 7px;
       cursor: pointer;
       z-index: 20;
+      box-shadow: 0 2px 8px 0 rgba(0,0,0,0.18);
+      transition: background 0.2s;
     }
-
-    /* Modal Styles */
+    #helpBtn:hover {
+      background-color: rgba(40, 80, 120, 0.8);
+    }
     #helpModal {
-      display: none; /* 默认隐藏 */
+      display: none;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background-color: rgba(0,0,0,0.7);
+      background-color: rgba(10,20,40,0.8);
       justify-content: center;
       align-items: center;
       z-index: 30;
     }
-
     .modal-content {
-      background-color: #1a1a1a;
-      padding: 20px;
-      border-radius: 10px;
-      width: 90%;
-      max-width: 400px;
-      color: white;
+      background-color: #1a2a1a;
+      padding: 24px;
+      border-radius: 14px;
+      width: 92%;
+      max-width: 420px;
+      color: #fff;
       position: relative;
-      box-shadow: 0 0 10px rgba(255,255,255,0.2);
-      font-family: sans-serif;
+      box-shadow: 0 0 18px rgba(80,200,255,0.12);
+      font-family: 'Segoe UI', Arial, sans-serif;
     }
-
     .modal-content h2 {
       margin-top: 0;
+      font-size: 22px;
+      letter-spacing: 1px;
     }
-
     .modal-content ul {
       list-style-type: none;
       padding-left: 0;
     }
-
     .modal-content li {
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
-
     #closeModal {
       position: absolute;
       top: 10px;
       right: 15px;
-      font-size: 24px;
-      color: white;
+      font-size: 26px;
+      color: #fff;
       cursor: pointer;
+    }
+    /* 开屏进度条遮罩 */
+    #loadingOverlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(4,10,22,0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      transition: opacity 0.5s;
+    }
+    #loadingText {
+      color: #fff;
+      font-size: 20px;
+      margin-bottom: 20px;
+      font-family: sans-serif;
+      letter-spacing: 2px;
+    }
+    #progressBar {
+      width: 240px;
+      height: 12px;
+      background: #222;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    #progressBarInner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #00c3ff, #ffff1c);
+      border-radius: 6px;
+      transition: width 0.3s;
+    }
+    #progressPercent {
+      color: #aaa;
+      font-size: 14px;
+      font-family: monospace;
+      margin-bottom: 10px;
+    }
+    #minimap {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 260px;
+      height: 260px;
+      background: rgba(20,30,40,0.5);
+      border-radius: 14px;
+      box-shadow: 0 2px 16px 0 rgba(0,0,0,0.18);
+      border: 2px solid rgba(200,220,255,0.18);
+      z-index: 50;
+      pointer-events: none;
+      backdrop-filter: blur(2px);
+    }
+    /* 操作按钮说明样式 */
+    #controlsBar {
+      position: fixed;
+      left: 50%;
+      bottom: 32px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: flex-end;
+      gap: 48px;
+      z-index: 100;
+      user-select: none;
+      pointer-events: none;
+    }
+    .controls-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .controls-keys {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 2px;
+    }
+    .keycap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 32px;
+      height: 32px;
+      background: rgba(40,50,60,0.7);
+      color: #E2FF02;
+      font-size: 18px;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      border-radius: 8px;
+      margin: 0 2px;
+      box-shadow: 0 2px 8px 0 rgba(0,0,0,0.12);
+      border: 1.5px solid rgba(120,140,180,0.13);
+      font-weight: 500;
+      pointer-events: none;
+    }
+    .keycap.big {
+      min-width: 54px;
+      font-size: 17px;
+    }
+    .controls-label {
+      color: #bfc9d8;
+      font-size: 15px;
+      margin-top: 2px;
+      letter-spacing: 0.5px;
+    }
+    .mousecap {
+      width: 28px;
+      height: 28px;
+      border: 2px solid #e3e8ef;
+      border-radius: 50%;
+      display: inline-block;
+      margin: 0 2px;
+      position: relative;
+      background: none;
+    }
+    .mousecap:after {
+      content: '';
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 6px; height: 6px;
+      background: #e3e8ef;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      opacity: 0.7;
     }
   </style>
 </head>
@@ -139,10 +274,59 @@
       <li><strong>W/A/S/D：</strong>前后左右移动</li>
       <li><strong>R/F：</strong>上下移动</li>
       <li><strong>Shift：</strong>开启加速（跳跃式前进）</li>
-      <li><strong>Q 键：</strong>悬停高亮的星点时按 Q 打开视频链接</li>
       <li><strong>鼠标移动：</strong>改变视角方向</li>
+      <li><strong>Q 键：</strong>悬停高亮的星点时按 Q 打开视频链接（新标签页）</li>
+      <li><strong>E 键：</strong>悬停高亮的星点时按 E 在页面弹窗中播放视频，弹窗时星图暂停，E 或点击弹窗外关闭</li>
+      <li><strong>Space 空格：</strong>自动跳转到当前高亮点最近的下一个节点（专区推荐）</li>
       <li><strong>Esc：</strong>退出控制模式</li>
     </ul>
+  </div>
+</div>
+
+<!-- 开屏进度条遮罩 -->
+<div id="loadingOverlay">
+  <div id="loadingText">数据加载中，请稍候...</div>
+  <div id="progressBar"><div id="progressBarInner"></div></div>
+  <div id="progressPercent">0%</div>
+</div>
+
+<canvas id="minimap" width="260" height="260"></canvas>
+
+<div id="videoModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(10,20,40,0.85);z-index:1000;align-items:center;justify-content:center;">
+  <div style="position:relative;width:70vw;height:70vh;max-width:900px;max-height:600px;background:#111;border-radius:14px;box-shadow:0 8px 32px #000;display:flex;align-items:center;justify-content:center;">
+    <span id="closeVideoModal" style="position:absolute;top:10px;right:18px;font-size:32px;color:#fff;cursor:pointer;z-index:10;">&times;</span>
+    <iframe id="videoIframe" src="" frameborder="0" allowfullscreen style="width:100%;height:100%;border-radius:12px;"></iframe>
+  </div>
+</div>
+
+<!-- 操作按钮说明栏 -->
+<div id="controlsBar">
+  <div class="controls-group">
+    <div class="controls-keys">
+      <span class="keycap">W</span>
+    </div>
+    <div class="controls-keys">
+      <span class="keycap">A</span>
+      <span class="keycap">S</span>
+      <span class="keycap">D</span>
+    </div>
+    <div class="controls-label">Move</div>
+  </div>
+  <div class="controls-group">
+    <span class="mousecap"></span>
+    <div class="controls-label">Look</div>
+  </div>
+  <div class="controls-group">
+    <span class="keycap big">Shift</span>
+    <div class="controls-label">Boost</div>
+  </div>
+  <div class="controls-group">
+    <span class="keycap big">E</span>
+    <div class="controls-label">Open Video</div>
+  </div>
+  <div class="controls-group">
+    <span class="keycap big">Space</span>
+    <div class="controls-label">Next Node</div>
   </div>
 </div>
 
@@ -151,11 +335,11 @@ import * as THREE from "three";
 import { PointerLockControls } from "https://unpkg.com/three@0.164.0/examples/jsm/controls/PointerLockControls.js";
 
 let camera, scene, renderer, controls, raycaster;
-let sphereGroup, highlightRing = null;
+let points, highlightRing = null;
 let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, moveUp = false, moveDown = false, isWarp = false;
 let velocity = new THREE.Vector3();
 let prevTime = performance.now();
-const speed = 1.5, warpSpeed = 8;
+const speed = 4.5, warpSpeed = 16;
 const infoDiv = document.getElementById('info');
 const blocker = document.getElementById('blocker');
 
@@ -164,10 +348,49 @@ const helpBtn = document.getElementById('helpBtn');
 const helpModal = document.getElementById('helpModal');
 const closeModal = document.getElementById('closeModal');
 
-fetch('data.json').then(res => res.json()).then(pointData => {
-  init(pointData);
-  animate();
-});
+// 进度条元素
+const loadingOverlay = document.getElementById('loadingOverlay');
+const progressBarInner = document.getElementById('progressBarInner');
+const progressPercent = document.getElementById('progressPercent');
+
+// 视频弹窗相关
+const videoModal = document.getElementById('videoModal');
+const videoIframe = document.getElementById('videoIframe');
+const closeVideoModal = document.getElementById('closeVideoModal');
+
+let controlsLockedBeforeModal = false;
+let starMapPaused = false;
+
+// 访问过的节点索引集合
+const visitedNodeSet = new Set();
+
+// 模拟进度条（fetch不支持原生进度，实际可用XHR或fetch+stream优化）
+function setProgress(p) {
+  progressBarInner.style.width = `${p}%`;
+  progressPercent.textContent = `${p}%`;
+}
+
+setProgress(10);
+fetch('data.json')
+  .then(res => {
+    setProgress(30);
+    return res.json();
+  })
+  .then(pointData => {
+    setProgress(60);
+    setTimeout(() => {
+      init(pointData);
+      setProgress(90);
+      setTimeout(() => {
+        setProgress(100);
+        setTimeout(() => {
+          loadingOverlay.style.opacity = 0;
+          setTimeout(() => loadingOverlay.style.display = 'none', 500);
+        }, 400);
+      }, 200);
+    }, 200);
+    animate();
+  });
 
 function findDenseRegion(pointData, gridSize = 0.1) {
   const grid = new Map();
@@ -207,14 +430,34 @@ function findDenseRegion(pointData, gridSize = 0.1) {
   return denseCenter;
 }
 
+// 点贴图生成函数
+function createGlowTexture() {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(size/2, size/2, 2, size/2, size/2, size/2);
+  gradient.addColorStop(0, 'rgba(255,255,200,1)');
+  gradient.addColorStop(0.2, 'rgba(180,255,100,0.9)');
+  gradient.addColorStop(0.5, 'rgba(80,255,80,0.7)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0,0,size,size);
+  return new THREE.CanvasTexture(canvas);
+}
+
+let minimap, minimapCtx;
+let allPositions = null, allUserDatas = null;
+
 function init(pointData) {
   scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a1a1a);
+  scene.fog = new THREE.Fog(0x0a1a1a, 2, 30);
   camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.01, 100);
 
-   // 定位到最密集区域
+  // 定位到最密集区域
   const center = findDenseRegion(pointData);
   camera.position.set(center[0] + 0.5, center[1], center[2] + 0.5);
-
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -228,20 +471,33 @@ function init(pointData) {
   controls.addEventListener('lock', () => blocker.style.display = 'none');
   controls.addEventListener('unlock', () => blocker.style.display = 'flex');
 
-  // 点作为 Mesh
-  sphereGroup = new THREE.Group();
-  pointData.forEach(d => {
-    const m = new THREE.Mesh(
-      new THREE.SphereGeometry(0.01, 12, 12),
-      new THREE.MeshStandardMaterial({
-        color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 1, roughness: 0.5, metalness: 0.1
-      })
-    );
-    m.position.set(...d.position);
-    m.userData = d;
-    sphereGroup.add(m);
+  // 用THREE.Points渲染所有节点
+  const positions = [];
+  const userDatas = [];
+  const scale = 1.7; // 稀疏系数
+  pointData.forEach((d, idx) => {
+    positions.push(d.position[0] * scale, d.position[1] * scale, d.position[2] * scale);
+    d._globalIndex = idx;
+    userDatas.push(d);
   });
-  scene.add(sphereGroup);
+  allPositions = new Float32Array(positions);
+  allUserDatas = userDatas;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.userDatas = userDatas;
+  const material = new THREE.PointsMaterial({
+    color: 0xE2FF02,
+    size: 0.018,
+    sizeAttenuation: true,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    blending: THREE.AdditiveBlending,
+    map: createGlowTexture(),
+    alphaTest: 0.01
+  });
+  points = new THREE.Points(geometry, material);
+  scene.add(points);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
   const spot = new THREE.SpotLight(0xffffff, 0.8);
@@ -249,6 +505,7 @@ function init(pointData) {
   scene.add(spot);
 
   raycaster = new THREE.Raycaster();
+  raycaster.params.Points.threshold = 0.05;
 
   window.addEventListener('resize', onWindowResize);
   window.addEventListener('keydown', onKey);
@@ -268,6 +525,26 @@ function init(pointData) {
       helpModal.style.display = 'none';
     }
   });
+
+  // 鼠标操作增强
+  window.addEventListener('mousedown', (e) => {
+    if (e.button === 0) moveForward = true; // 左键
+    if (e.button === 2) moveBackward = true; // 右键
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (e.button === 0) moveForward = false;
+    if (e.button === 2) moveBackward = false;
+  });
+  window.addEventListener('contextmenu', e => e.preventDefault()); // 禁止右键菜单
+  window.addEventListener('auxclick', (e) => {
+    if (e.button === 1 && highlightRing) {
+      const url = highlightRing.userData && highlightRing.userData["视频链接"];
+      if (url) window.open(url, '_blank');
+    }
+  });
+
+  minimap = document.getElementById('minimap');
+  minimapCtx = minimap.getContext('2d');
 }
 
 function onWindowResize() {
@@ -278,6 +555,7 @@ function onWindowResize() {
 
 function onKey(event) {
   const down = (event.type === 'keydown');
+  if (starMapPaused && event.code !== 'KeyE') return; // 弹窗时只响应E
   switch (event.code) {
     case 'KeyW': moveForward = down; break;
     case 'KeyS': moveBackward = down; break;
@@ -289,51 +567,189 @@ function onKey(event) {
     case 'ShiftRight': isWarp = down; break;
     case 'KeyQ':
       if (highlightRing) {
-        const url = highlightRing.userData["视频链接"];
+        const url = highlightRing.userData && highlightRing.userData["视频链接"];
         if (url) window.open(url, '_blank');
+      }
+      break;
+    case 'KeyE':
+      if (down) {
+        if (!starMapPaused && highlightRing) {
+          const url = highlightRing.userData && highlightRing.userData["视频链接"];
+          if (url) openVideoPopup(url);
+        } else if (starMapPaused) {
+          closeVideoPopup();
+        }
       }
       break;
   }
 }
 
-function highlightSphereMesh(sphere) {
+function highlightSphereMesh(index) {
   if (highlightRing) {
     scene.remove(highlightRing);
     highlightRing.geometry.dispose();
     highlightRing.material.dispose();
     highlightRing = null;
   }
+  // 获取点的坐标
+  const posArr = points.geometry.attributes.position.array;
+  const x = posArr[index * 3];
+  const y = posArr[index * 3 + 1];
+  const z = posArr[index * 3 + 2];
+  // 获取点的userData
+  const d = points.geometry.userDatas[index];
 
+  // 固定高亮环大小，白色发光材质
   highlightRing = new THREE.Mesh(
     new THREE.RingGeometry(0.02, 0.025, 32),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthTest: false
+    })
   );
-  highlightRing.position.copy(sphere.position);
+  highlightRing.position.set(x, y, z);
   highlightRing.lookAt(camera.position);
-  highlightRing.userData = sphere.userData;
+  highlightRing.renderOrder = 999;
+  highlightRing.userData = d;
   scene.add(highlightRing);
 
-  const d = sphere.userData;
+  // 展示信息
   infoDiv.innerHTML = `
-   <b>热门期数：</b>${d.期数}<br>
-   <b>标题：</b>${d.title}<br>
+    <b>热门期数：</b>${d.期数}<br>
+    <b>标题：</b>${d.title}<br>
     <b>描述：</b>${d.description}<br>
     <b>UP主：</b>${d.UP主}<br>
     <b>分类：</b>${d.分类} - ${d.子分类}<br>
     <b>👍：</b>${d.点赞数} &nbsp; <b>收藏：</b>${d.收藏数}<br>
     <b>💬：</b>${d.评论数}<br>
-    <img src="${d.封面图片}" referrerpolicy="no-referrer" style="width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px;" />
-  `;
+    <img src="${d.封面图片}" referrerpolicy="no-referrer" style="width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px;" />`;
+}
+
+function renderMinimap() {
+  if (!minimapCtx || !points) return;
+  const w = minimap.width, h = minimap.height;
+  minimapCtx.clearRect(0, 0, w, h);
+  // 背景渐变
+  const bgGrad = minimapCtx.createLinearGradient(0, 0, w, h);
+  bgGrad.addColorStop(0, '#1a2a1a');
+  bgGrad.addColorStop(1, '#0a1a1a');
+  minimapCtx.fillStyle = bgGrad;
+  minimapCtx.fillRect(0, 0, w, h);
+  // 获取所有点
+  const posArr = points.geometry.attributes.position.array;
+  // 计算包围盒
+  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+  for (let i=0; i<posArr.length; i+=3) {
+    minX = Math.min(minX, posArr[i]);
+    maxX = Math.max(maxX, posArr[i]);
+    minY = Math.min(minY, posArr[i+1]);
+    maxY = Math.max(maxY, posArr[i+1]);
+  }
+  // 扩展边界，避免贴边
+  const pad = 0.1 * Math.max(maxX-minX, maxY-minY);
+  minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+  // 画点
+  for (let i=0; i<posArr.length; i+=3) {
+    const x = posArr[i], y = posArr[i+1];
+    const px = ((x-minX)/(maxX-minX))*w;
+    const py = h-((y-minY)/(maxY-minY))*h;
+    minimapCtx.beginPath();
+    minimapCtx.arc(px, py, 5, 0, 2*Math.PI);
+    minimapCtx.fillStyle = '#E3FF01';
+    minimapCtx.globalAlpha = 0.85;
+    minimapCtx.fill();
+    minimapCtx.globalAlpha = 1;
+  }
+  // 画相机朝向
+  const cx = ((camera.position.x-minX)/(maxX-minX))*w;
+  const cy = h-((camera.position.y-minY)/(maxY-minY))*h;
+  minimapCtx.save();
+  minimapCtx.translate(cx, cy);
+  minimapCtx.strokeStyle = '#fff';
+  minimapCtx.lineWidth = 2.5;
+  minimapCtx.beginPath();
+  minimapCtx.arc(0, 0, 10, 0, 2*Math.PI);
+  minimapCtx.stroke();
+  // 朝向箭头
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const angle = Math.atan2(dir.y, dir.x);
+  minimapCtx.rotate(angle);
+  minimapCtx.beginPath();
+  minimapCtx.moveTo(0, 0);
+  minimapCtx.lineTo(18, 0);
+  minimapCtx.lineTo(12, -6);
+  minimapCtx.moveTo(18, 0);
+  minimapCtx.lineTo(12, 6);
+  minimapCtx.stroke();
+  minimapCtx.restore();
+}
+
+function updateVisiblePoints() {
+  if (!allPositions || !allUserDatas || !points) return;
+  const maxRenderDist = 30; // 可调
+  const camPos = camera.position;
+  const visiblePositions = [];
+  const visibleUserDatas = [];
+  const colors = [];
+  for (let i = 0; i < allPositions.length; i += 3) {
+    const dx = allPositions[i] - camPos.x;
+    const dy = allPositions[i+1] - camPos.y;
+    const dz = allPositions[i+2] - camPos.z;
+    if (dx*dx + dy*dy + dz*dz < maxRenderDist*maxRenderDist) {
+      visiblePositions.push(allPositions[i], allPositions[i+1], allPositions[i+2]);
+      visibleUserDatas.push(allUserDatas[i/3]);
+      // 所有点都为荧光绿#E2FF02
+      colors.push(0xE2FF02, 0xE2FF02, 0xE2FF02);
+    }
+  }
+  // 更新geometry
+  const newAttr = new THREE.Float32BufferAttribute(visiblePositions, 3);
+  points.geometry.setAttribute('position', newAttr);
+  points.geometry.userDatas = visibleUserDatas;
+  points.geometry.setDrawRange(0, visiblePositions.length/3);
+  points.geometry.attributes.position.needsUpdate = true;
+  // 设置颜色属性
+  if (colors.length > 0) {
+    const colorAttr = new THREE.Float32BufferAttribute(colors, 3);
+    points.geometry.setAttribute('color', colorAttr);
+    points.material.vertexColors = true;
+    points.material.color.set(0xE2FF02);
+  }
+}
+
+function openVideoPopup(url) {
+  starMapPaused = true;
+  controlsLockedBeforeModal = controls.isLocked;
+  if (controlsLockedBeforeModal) controls.unlock();
+  blocker.style.display = 'none';
+  videoIframe.src = url;
+  videoModal.style.display = 'flex';
+  document.body.style.cursor = 'auto';
+  setTimeout(() => videoIframe.focus(), 100);
+}
+
+function closeVideoPopup() {
+  videoModal.style.display = 'none';
+  videoIframe.src = '';
+  starMapPaused = false;
+  document.body.style.cursor = '';
+  if (controlsLockedBeforeModal) controls.lock();
 }
 
 function animate() {
   requestAnimationFrame(animate);
-
-  // 射线检测中心
+  if (starMapPaused) return;
+  updateVisiblePoints();
+  // 优化准心选中逻辑：只高亮准心方向上距离相机最近的点
   raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-  const hits = raycaster.intersectObjects(sphereGroup.children);
-  if (hits.length > 0) highlightSphereMesh(hits[0].object);
-  else if (highlightRing) {
+  const intersects = raycaster.intersectObject(points, false);
+  if (intersects.length > 0 && intersects[0].distance < 10) {
+    highlightSphereMesh(intersects[0].index);
+  } else if (highlightRing) {
     scene.remove(highlightRing);
     highlightRing = null;
     infoDiv.innerHTML = '';
@@ -348,33 +764,36 @@ function animate() {
   velocity.y -= velocity.y * 10.0 * delta;
   velocity.z -= velocity.z * 10.0 * delta;
 
-  const actualSpeed = isWarp ? warpSpeed : speed;
+  // 鼠标左右键长按时速度与shift一致
+  const mouseBoost = moveForward || moveBackward ? warpSpeed : speed;
+  const actualSpeed = isWarp || moveForward || moveBackward ? warpSpeed : speed;
 
   const direction = new THREE.Vector3();
-  camera.getWorldDirection(direction); // 完整的方向，包含 y
+  camera.getWorldDirection(direction);
   direction.normalize();
 
   const right = new THREE.Vector3();
-  right.crossVectors(camera.up, direction).normalize(); // 相机右侧方向
+  right.crossVectors(camera.up, direction).normalize();
 
   const up = new THREE.Vector3();
-  up.copy(camera.up).normalize(); // 相机上方方向
+  up.copy(camera.up).normalize();
 
   let moveDir = new THREE.Vector3();
-  if (moveForward) moveDir.add(direction);   // 前
-  if (moveBackward) moveDir.sub(direction);  // 后
-  if (moveLeft) moveDir.sub(right);          // 左
-  if (moveRight) moveDir.add(right);         // 右
-  if (moveUp) moveDir.add(up);               // 上
-  if (moveDown) moveDir.sub(up);             // 下
+  if (moveForward) moveDir.add(direction);
+  if (moveBackward) moveDir.sub(direction);
+  if (moveLeft) moveDir.add(right);
+  if (moveRight) moveDir.sub(right);
+  if (moveUp) moveDir.add(up);
+  if (moveDown) moveDir.sub(up);
 
   if (!moveDir.equals(new THREE.Vector3())) {
-    moveDir.normalize(); // 避免斜向移动过快
+    moveDir.normalize();
   }
 
   velocity.addScaledVector(moveDir, actualSpeed * delta);
   controls.getObject().position.add(velocity.clone().multiplyScalar(delta));
 
+  renderMinimap();
   renderer.render(scene, camera);
 }
 </script>
